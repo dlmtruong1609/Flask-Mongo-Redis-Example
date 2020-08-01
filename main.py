@@ -1,8 +1,7 @@
 from flask import Flask, request
 from flask_pymongo import PyMongo
 from flask_redis import Redis
-from flask import jsonify
-
+import json
 app = Flask(__name__)
 app.config["MONGO_URI"] = "mongodb://my_mongo:27017/demo"
 app.config['REDIS_URL'] = 'redis://my_redis:6379/1'
@@ -29,51 +28,40 @@ def get_sample():
             "name": r["name"]
         })
     return {
-        "msg": "success", 
-        "res": res
+        "err_code": 0,
+        "msg": "success",
+        "mongo": res
     }
         
-@app.route('/redis', methods=['POST'])
-def set_redis_api():
-    """
-    TODO: Set key:value to redis with TTL
-    @payload: json:
-        - key (string): key for set
-        - val (string): value for set
-        - ttl ? int: 
-    """
-    payload = request.json
-    print(payload, flush=True)
-    redis.setex(
-        payload['key'], 
-        payload['ttl'], 
-        payload['val']
-    )
-
-    print(payload, flush=True)
-
-    return payload
 
 def set_redis(list_data):
-    redis.setex(list_data)
+    redis.set('list', json.dumps(list_data))
     print("Redis is saved")
 
-@app.route('/redis/<key>')
-def get_redis(key):
-    val = redis.get(key)
-    print(val, flush=True)
-    # print(val)
-    return {"key": key, "val": val}
+def get_redis():
+    # redis.delete('list')
+    # print(redis.get("list") is None, flush=True)
+
+    if redis.get("list") is None:
+        res = redis.get('list') #key redis khong ton tai
+    else:
+        res = json.loads(redis.get("list")) #key co ton tai va value convert sang json
+    return {
+        "err_code": 0,
+        "msg": "success",
+        "redis": res
+    }
+
+
 @app.route('/data')
 def get_data():
-    args = request.args
-    if get_redis(args["key"])["val"] is None :
-        set_redis(get_sample()["res"])
+    if get_redis()['redis'] is None :
+        set_redis(get_sample()["mongo"])
         print("get data from mongo", flush=True)
         return get_sample()
     else:
         print("get data from redis", flush=True)
-        return get_redis(args["key"])
+        return get_redis()
 
 if __name__ == '__main__':
     app.run(port=5000, host="0.0.0.0", debug=True)
