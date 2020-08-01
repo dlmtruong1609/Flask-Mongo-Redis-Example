@@ -2,3 +2,4 @@ Flask
 Flask-And-Redis
 Flask-PyMongo
 requests
+flask_caching
