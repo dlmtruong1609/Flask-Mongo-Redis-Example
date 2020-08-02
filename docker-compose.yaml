@@ -3,7 +3,7 @@ services:
     api:
         container_name: "my-api"
         ports: 
-          - "5005:5000"
+          - "5000:5000"
         build: .
         volumes: 
           - .:/app
@@ -18,3 +18,9 @@ services:
     redis:
         container_name: my_redis
         image: redis:5
+
+    nginx:
+      container_name: nginx
+      build: ./nginx
+      ports: 
+        - "80:80"
