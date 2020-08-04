@@ -3,6 +3,7 @@ from flask_pymongo import PyMongo
 from flask_redis import Redis
 import json
 from flask_caching import Cache
+from functools import wraps
 
 
 config = {
@@ -23,6 +24,17 @@ redis = Redis(app, 'REDIS')
 @app.route('/')
 def hello_world():
     return 'Hello, World! aloalo 123'
+
+def response(msg):     
+    def response_decorator(func):
+        @wraps(func)
+        def response_wrap():
+            return {
+                "msg": msg,
+                "data": func()
+            }
+        return response_wrap
+    return response_decorator
  
 @app.route('/init_db')
 def ini_db():
@@ -31,65 +43,52 @@ def ini_db():
     return {"msg": "init data success"}
 
 @app.route('/sample')
+@response(msg = "Get data from mongo")
 def get_sample():
     res = []
     for r in mongo.db.sample.find({}):
-        res.append({
-            "id": str(r['_id']),
-            "name": r["name"]
-        })
-    return {
-        "err_code": 0,
-        "msg": "success",
-        "mongo": res
-    }
-        
+        r['_id'] = str(r['_id'])
+        res.append(r)
+    return res
 
-def set_redis(list_data):
-    redis.set('list', json.dumps(list_data))
-    set_data_from_cache(list_data) #set data khi cache ko co data
-    print("Redis is saved", flush=True)
 
-def get_redis():
+def set_data(db, data):
+    db.set("list", json.dumps(data))
+
+@response(msg = "Get data from redis")
+def get_data_from_redis():
     # redis.delete('list')
-    # print(redis.get("list") is None, flush=True)
+    # print(json.loads(redis.get('list')), flush=True)
 
-    if redis.get("list") is None:
-        res = redis.get('list') #key redis khong ton tai
-    else:
-        res = json.loads(redis.get("list")) #key co ton tai va value convert sang json
-    return {
-        "err_code": 0,
-        "msg": "success",
-        "redis": res
-    }
+    try:
+        res = json.loads(redis.get('list'))
+    except:
+        res = redis.get('list')
+    return res
 
+@response(msg = "Get data from cache")
 def get_data_from_cache():
     # cache.clear()
     # print(cache.get("list"), flush=True)
-    res = cache.get("list")
-    return {
-        "err_code": 0,
-        "msg": "success",
-        "cache": res
-    }
-
-def set_data_from_cache(list_data):
-    cache.set("list", list_data)
+    # res = cache.get("list")
+    try:
+        res = json.loads(cache.get("list"))
+    except:
+        res = cache.get("list")
+    return res
 
 @app.route('/data')
 def get_data():
-    if get_data_from_cache()['cache'] is not None:
-        print("get data from cache", flush=True)
+    if get_data_from_cache()['data'] is not None:
         return get_data_from_cache()
-    elif get_redis()['redis'] is None :
-        set_redis(get_sample()["mongo"]) #set data khi redis ko co data
-        print("get data from mongo", flush=True)
+
+    if get_data_from_redis()['data'] is not None:
+        set_data(cache, get_sample()["data"]) #set data khi cache ko co data
+        return get_data_from_redis()
+    
+    if get_data_from_redis()['data'] is None :
+        set_data(redis, get_sample()["data"]) #set data khi redis ko co data
         return get_sample()
-    else:
-        print("get data from redis", flush=True)
-        set_data_from_cache(get_redis()["redis"]) #set data khi cache ko co data
-        return get_redis()
 
 if __name__ == '__main__':
     app.run(port=5000, host="0.0.0.0", debug=True)
